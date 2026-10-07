@@ -64,7 +64,14 @@ services:
         value: postgres
       # Cadena de conexion completa (secret). Si la defines, tiene prioridad
       # sobre las variables sueltas de host/usuario/password.
-      # Ejemplo: postgresql://user:pass@host:5432/nodered?sslmode=require
+      #
+      # Ejemplo de Supabase (usa el "Session pooler", que tiene IPv4):
+      # postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+      #
+      # El sslmode de la URL es suficiente: el paquete node-red-storage-sequelize
+      # (>= 1.1.0) anade uselibpqcompat=true para que node-postgres aplique la
+      # semantica de libpq. Sin eso falla con "self-signed certificate in
+      # certificate chain".
       - key: NODE_RED_STORAGE_URL
         sync: false
 
@@ -79,12 +86,16 @@ services:
       #   sync: false
       # - key: NODE_RED_STORAGE_PASSWORD
       #   sync: false
+      #
+      # Con esta forma (sin URL) hay que pedir TLS explicitamente:
+      # - key: NODE_RED_STORAGE_SSL
+      #   value: "true"
 
-      # Postgres gestionado casi siempre exige TLS.
-      - key: NODE_RED_STORAGE_SSL
-        value: "true"
-      - key: NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED
-        value: "true"
+      # NOTA: NODE_RED_STORAGE_SSL y NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED se
+      # IGNORAN cuando hay NODE_RED_STORAGE_URL. La URL es la declaracion mas
+      # especifica y trae su propia negociacion TLS; dejar que estas variables la
+      # pisaran forzaria rejectUnauthorized=true y romperia la conexion con
+      # proveedores cuyo certificado Node no puede verificar por si solo.
 
       # Contexto inmediato: visible para todos los nodos y procesos externos
       # en cuanto se escribe. Súbelo para batchear escrituras si el plan de

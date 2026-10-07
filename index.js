@@ -65,7 +65,9 @@ var userDir = env("NODE_RED_USER_DIR")
     : path.join(projectRoot, ".node-red");
 
 // Both blocks are produced by the package itself, so the embedding application
-// never has to know how the backends are wired.
+// never has to know how the backends are wired. The package also owns the TLS
+// negotiation of NODE_RED_STORAGE_URL, including the libpq compatibility that
+// managed Postgres providers such as Supabase need.
 var storageModule = nodeRedStorage.buildStorageModule();
 var contextStorage = nodeRedStorage.buildContextStorage();
 

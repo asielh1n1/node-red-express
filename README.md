@@ -71,6 +71,47 @@ postgresql://usuario:password@host:5432/nodered?sslmode=require
 > IPv6 y falla dentro de Docker con `EAI_AGAIN`. Usa el **Session pooler**, cuyo
 > host (`aws-0-<region>.pooler.supabase.com`) sí tiene IPv4.
 
+### TLS: `self-signed certificate in certificate chain`
+
+Con `NODE_RED_STORAGE_URL` basta añadir `?sslmode=require`. De la negociación
+TLS se encarga **el paquete** `node-red-storage-sequelize` (a partir de la
+`1.1.0`), no esta aplicación: aquí solo hay que pasar la URL.
+
+El motivo es una diferencia entre libpq y node-postgres. `pg-connection-string`
+traduce `sslmode=require` a un objeto `ssl` vacío, y node-postgres aplica
+entonces el `rejectUnauthorized: true` por defecto de Node, que **valida la
+cadena de certificados**. libpq no lo hace en modo `require`. Como la mayoría de
+los Postgres gestionados presentan un certificado que Node no puede verificar por
+sí solo (Supabase, Neon, Aiven, Heroku), la conexión muere con:
+
+```text
+SequelizeConnectionError: self-signed certificate in certificate chain
+```
+
+El paquete lo resuelve añadiendo `uselibpqcompat=true` a la URL cuando detecta un
+`sslmode` no estricto, lo que restaura la semántica de libpq sin desactivar la
+validación del certificado. Solo se aplica a URLs de Postgres; el resto pasa
+intacto, y si ya incluye `uselibpqcompat` no se toca.
+
+Detalle importante: cuando hay URL, el paquete **ignora**
+`NODE_RED_STORAGE_SSL` y `NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED`. La URL es la
+declaración más específica y ya trae su propia negociación; dejar que las
+variables genéricas la pisaran forzaría `rejectUnauthorized` de nuevo y anularía
+el `sslmode`. Esas variables siguen aplicándose al modo host/usuario/contraseña.
+
+| Forma | Cuándo usarla |
+|---|---|
+| `...?sslmode=require` | Por defecto, y suficiente. |
+| `...?sslmode=verify-full` | Solo si el proveedor usa una CA pública que Node valide. |
+| `NODE_RED_STORAGE_SSL=true` <br> `NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED=false` | Sin URL, con variables sueltas y certificado autofirmado. |
+
+> `sslmode=no-verify` **no** sirve aquí. `pg-connection-string` lo traduce
+> igualmente a `ssl: {}`, así que reaparece el mismo error. El paquete lo
+> normaliza igual que `require`.
+
+Si usas pgbouncer en modo transacción (puerto `6543`), Sequelize puede fallar con
+las sentencias preparadas. Prefiere el Session pooler en el puerto `5432`.
+
 ### 2. Genera el hash de la contraseña
 
 ```bash
@@ -136,8 +177,8 @@ El editor queda en `https://TU-APP.onrender.com/admin`.
 | `NODE_RED_STORAGE_USERNAME` | — | Usuario. |
 | `NODE_RED_STORAGE_PASSWORD` | — | Contraseña. |
 | `NODE_RED_STORAGE_SCHEMA` | `public` | Esquema (solo Postgres). |
-| `NODE_RED_STORAGE_SSL` | `false` | Activa TLS. Necesario en bases de datos gestionadas. |
-| `NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED` | `true` | Ponlo a `false` con certificados autofirmados. |
+| `NODE_RED_STORAGE_SSL` | `false` | Activa TLS. **Ignorado cuando hay `NODE_RED_STORAGE_URL`.** |
+| `NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED` | `true` | Ponlo a `false` con certificados autofirmados. **Ignorado cuando hay `NODE_RED_STORAGE_URL`.** |
 | `NODE_RED_STORAGE_POOL_MAX` | `5` | Conexiones máximas del pool. |
 | `NODE_RED_STORAGE_LOGGING` | `false` | Muestra el SQL ejecutado. |
 | `NODE_RED_STORAGE_FLUSH_INTERVAL` | `0` | Segundos de batching del contexto. `0` escribe al instante. |

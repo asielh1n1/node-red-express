@@ -14,7 +14,7 @@
     "express": "^4.22.3",
     "mysql2": "^3.24.5",
     "node-red": "^5.0.7",
-    "node-red-storage-sequelize": "^1.0.0",
+    "node-red-storage-sequelize": "^1.1.0",
     "pg": "^8.23.1",
     "pg-hstore": "^2.3.4"
   }
