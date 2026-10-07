@@ -1,0 +1,74 @@
+# ==========================================================================
+# Docker Compose para desarrollo y pruebas locales.
+#
+# Reproduce exactamente lo que se despliega en Render: misma imagen, mismas
+# variables de entorno, mismo healthcheck.
+#
+# Uso:
+#   cp .env.example .env        # rellena las credenciales de la base de datos
+#   docker compose up --build
+#   Editor: http://localhost:8000/admin
+#
+# Persistencia: los flujos, credenciales, settings y el contexto viven en la
+# base de datos (Postgres o MySQL), NO en un volumen. Por eso se puede hacer
+# `docker compose down` y `up` sin perder nada.
+# ==========================================================================
+
+services:
+  node-red:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: node-red-express:local
+    container_name: node-red-express
+    restart: unless-stopped
+
+    ports:
+      # Puerto del host -> puerto del contenedor.
+      # El de la derecha es siempre 8000 (el valor por defecto de la imagen).
+      # El de la izquierda se controla con HOST_PORT, NO con PORT, porque PORT
+      # del .env lo lee Compose al interpolar y acabaria desalineando el mapeo.
+      # Render ignora esto por completo: inyecta su propio PORT.
+      - "${HOST_PORT:-8000}:8000"
+
+    env_file:
+      - path: .env
+        required: false
+
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      # El puerto interno del contenedor es el valor por defecto de la imagen.
+      # Se fija aqui (y no en el .env) para que el mapeo de `ports` de arriba
+      # siempre coincida: `environment` tiene prioridad sobre `env_file`.
+      # En Render esta variable la inyecta la plataforma.
+      PORT: "8000"
+      # userDir dentro del contenedor (volumen con nombre mas abajo).
+      NODE_RED_USER_DIR: /data
+
+    # DNS explicito: evita fallos transitorios (EAI_AGAIN) al resolver hosts
+    # gestionados (Supabase, PlanetScale...) desde Docker Desktop o redes con
+    # proxy corporativo.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+    # Dentro del contenedor, "localhost" es el propio contenedor, no la maquina
+    # anfitriona. Esta entrada hace que host.docker.internal resuelva al host en
+    # Linux ademas de en Docker Desktop (Windows/macOS), que ya lo resuelve.
+    # Apunta NODE_RED_STORAGE_HOST a host.docker.internal para usar una base de
+    # datos que corre en tu maquina; con una base gestionada usa su host real.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      # Volumen con nombre para el userDir. Con un dialecto configurado aqui
+      # solo se guardan datos de scratch, pero mantiene el contenedor
+      # reproducible y permite inspeccionar /data.
+      - node-red-data:/data
+
+    stdin_open: true
+    tty: true
+
+volumes:
+  node-red-data:

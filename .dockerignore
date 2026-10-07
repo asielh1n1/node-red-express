@@ -1,0 +1,68 @@
+# ==========================================================================
+# Dependencias: se reinstalan dentro de la imagen durante el build (npm ci).
+# Copiarlas desde el host romperia la portabilidad (modulos nativos
+# compilados para otro SO/arquitectura).
+# ==========================================================================
+node_modules/
+
+# ==========================================================================
+# Estado de runtime de Node-RED (se regenera dentro del contenedor).
+# Cuando hay un dialecto configurado estos datos viven en la base de datos,
+# pero se excluyen igualmente para no filtrar credenciales al contexto de
+# build si alguna vez se ejecuto la app en local sin dialecto.
+# ==========================================================================
+.node-red/
+data/.sessions.json
+data/.config.*.json
+data/.config.*.json.backup
+data/.credential-secret
+data/lib/
+data/flows_cred.json
+.flows.json.backup
+
+# Archivos de credenciales (nunca a la imagen)
+*_cred.json
+
+# ==========================================================================
+# Variables de entorno y secretos
+# ==========================================================================
+.env
+.env.*
+!.env.example
+
+# ==========================================================================
+# Tests y utilidades de desarrollo (no van a la imagen final)
+# ==========================================================================
+**/*.test.js
+scripts/
+
+# ==========================================================================
+# Control de versiones y metadatos
+# ==========================================================================
+.git/
+.gitignore
+.gitattributes
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+render.yaml
+README.md
+*.md
+
+# ==========================================================================
+# Registros y archivos temporales
+# ==========================================================================
+*.log
+npm-debug.log*
+logs/
+*.tmp
+run-*.log
+
+# ==========================================================================
+# Editor / SO
+# ==========================================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -21,14 +21,7 @@ var nodeRedStorage = require("node-red-storage-sequelize");
 
 // Absolute path to the project folder (works no matter where the project is deployed)
 var projectRoot = __dirname;
-var assetsDir = path.join(projectRoot, "assets");
 var publicDir = path.join(projectRoot, "public");
-
-// Node-RED user directory. Defaults to a ".node-red" folder inside the project
-// so all runtime data stays with the deployment.
-var userDir = process.env.NODE_RED_USER_DIR
-    ? path.resolve(process.env.NODE_RED_USER_DIR)
-    : path.join(projectRoot, ".node-red");
 
 /**
  * Reads an environment variable, treating empty strings as "not configured".
@@ -41,6 +34,35 @@ function env(name) {
         ? undefined
         : String(value).trim();
 }
+
+// Directory holding the editor branding: favicon.ico, logo.png and cover.png.
+// Overridable so a deployment (e.g. Docker) can mount its own artwork from a
+// volume without rebuilding the image.
+var assetsDir = env("NODE_RED_ASSETS_DIR")
+    ? path.resolve(env("NODE_RED_ASSETS_DIR"))
+    : path.join(projectRoot, "assets");
+
+// Logo/favicon/cover artwork are user-supplied and therefore optional: pointing
+// Node-RED at a missing file makes the editor render a broken image, so each
+// entry falls back to undefined and lets Node-RED use its built-in defaults.
+var faviconPath = path.join(assetsDir, "favicon.ico");
+var logoPath = path.join(assetsDir, "logo.png");
+var coverPath = path.join(assetsDir, "cover.png");
+
+/**
+ * Returns the asset path when the file exists, otherwise undefined.
+ * @param {string} filePath Candidate file.
+ * @returns {string|undefined} A usable path or undefined.
+ */
+function assetPath(filePath) {
+    return require("fs").existsSync(filePath) ? filePath : undefined;
+}
+
+// Node-RED user directory. Defaults to a ".node-red" folder inside the project
+// so all runtime data stays with the deployment.
+var userDir = env("NODE_RED_USER_DIR")
+    ? path.resolve(env("NODE_RED_USER_DIR"))
+    : path.join(projectRoot, ".node-red");
 
 // Both blocks are produced by the package itself, so the embedding application
 // never has to know how the backends are wired.
@@ -81,18 +103,34 @@ var settings = {
     contextStorage: contextStorage,
 
     functionGlobalContext: { },
+
+    // Seed used by Node-RED to encrypt flow credentials. When it is not set the
+    // runtime generates one and stores it in the settings row of the database,
+    // which is fine for a single instance. With several replicas, or when
+    // migrating between databases, all of them must share the same secret or
+    // the stored credentials cannot be decrypted.
+    credentialSecret: env("NODE_RED_CREDENTIAL_SECRET") || undefined,
+
+    // Behind Render's proxy the client protocol arrives in X-Forwarded-Proto.
+    // Without this Node-RED believes it is serving plain HTTP and builds the
+    // editor/WebSocket URLs with the wrong scheme.
+    httpAdminTrustProxy: process.env.NODE_RED_TRUST_PROXY !== "false",
+
     editorTheme: {
         page: {
             title: process.env.NODE_RED_TITLE || "Node-RED Cloud",
-            favicon: path.join(assetsDir, "favicon.ico"),
+            // Undefined keeps Node-RED's bundled favicon.
+            favicon: assetPath(faviconPath),
         },
         header: {
             title: process.env.NODE_RED_TITLE || "Node-RED Cloud",
-            image: path.join(assetsDir, "logo.png"),
+            // Undefined keeps Node-RED's bundled logo.
+            image: assetPath(logoPath),
             url: process.env.NODE_RED_HEADER_URL || "https://nodered.org",
         },
         login: {
-            image: path.join(assetsDir, "cover.png"),
+            // Undefined renders the default login cover.
+            image: assetPath(coverPath),
         },
     },
     adminAuth: {
@@ -122,9 +160,52 @@ app.use((req, res) => {
 
 var port = Number(process.env.PORT) || 8000;
 
-server.listen(port, function () {
-    console.log("[node-red-express] Listening on http://localhost:" + port + settings.httpAdminRoot);
+// Binding to 0.0.0.0 is required inside a container: binding to localhost would
+// make the port unreachable from outside it, so Render's health check and the
+// proxy would both fail.
+var host = process.env.HOST || "0.0.0.0";
+
+server.listen(port, host, function () {
+    console.log("[node-red-express] Listening on http://" + host + ":" + port + settings.httpAdminRoot);
+});
+
+server.on("error", function (err) {
+    console.error("[node-red-express] Failed to bind port " + port + ": " + err.message);
+    process.exit(1);
 });
 
 // Start the runtime
-RED.start();
+RED.start().catch(function (err) {
+    console.error("[node-red-express] Node-RED failed to start: " + (err && err.stack ? err.stack : err));
+    process.exit(1);
+});
+
+/**
+ * Drains in-flight work on shutdown so pending context writes reach the
+ * database before the process dies. Render sends SIGTERM on every deploy or
+ * restart, which without this handler would drop the last batch of writes.
+ * @param {string} signal Received signal name.
+ * @returns {void}
+ */
+function shutdown(signal) {
+    console.log("[node-red-express] Received " + signal + ", shutting down");
+    server.close(function () {
+        // The storage module exposes close() and flushes what is buffered.
+        var close = nodeRedStorage.close;
+        if (typeof close !== "function") {
+            process.exit(0);
+            return;
+        }
+        Promise.resolve(close.call(nodeRedStorage)).then(
+            function () { process.exit(0); },
+            function (err) {
+                console.error("[node-red-express] Error during shutdown: " + err);
+                process.exit(1);
+            }
+        );
+    });
+}
+
+["SIGTERM", "SIGINT"].forEach(function (signal) {
+    process.on(signal, function () { shutdown(signal); });
+});

@@ -1,0 +1,102 @@
+# ==========================================================================
+# Render Blueprint — despliega este proyecto en Render.com
+#
+# Render construye el ./Dockerfile y arranca `node index.js`, que levanta
+# Express + Node-RED en el puerto que Render inyecta via la variable PORT.
+#
+# Persistencia: flujos, credenciales, settings, sesiones, libreria y contexto
+# se guardan en una base de datos (Postgres o MySQL) mediante el paquete
+# `node-red-storage-sequelize`. NO se necesita disco persistente de Render,
+# por eso el plan `free` es suficiente.
+#
+# Requisitos previos:
+#   1. Crea una base de datos Postgres (Render, Neon, Supabase...) o MySQL.
+#      Si es un Postgres gestionado, usa la cadena que empiece por
+#      `postgresql://` y que incluya `?sslmode=require` cuando asi lo pida.
+#   2. Genera el hash bcrypt de la contrasena del editor.
+#
+# Pasos en Render:
+#   1) New -> Blueprint y conecta este repositorio (o New -> Web Service ->
+#      Docker y apunta al Dockerfile del repo).
+#   2) Define los secretos en el panel (los marcados con `sync: false`):
+#        - NODE_RED_STORAGE_URL   -> cadena de conexion a la base de datos
+#        - NODE_RED_ADMIN_HASH    -> hash bcrypt de la contrasena
+#      Si tu proveedor no entrega una URL, usa las variables sueltas
+#      NODE_RED_STORAGE_HOST/PORT/DATABASE/USERNAME/PASSWORD que aparecen
+#      comentadas mas abajo.
+#   3) Deploy. El editor queda en https://TU-APP.onrender.com/admin
+#
+# Referencia: https://render.com/docs/blueprint-spec
+# ==========================================================================
+
+services:
+  - type: web
+    name: node-red-express
+    runtime: docker                    # Usa el ./Dockerfile del repositorio
+    plan: free                         # No hay disco persistente: los datos van a la BD
+    healthCheckPath: /admin/           # Responde 200 (login) o 401 (auth activa)
+    autoDeploy: true
+    # Render inyecta PORT automaticamente; index.js lo lee y escucha en el.
+
+    envVars:
+      # --- Entorno -----------------------------------------------------------
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: UTC
+
+      # --- Editor ------------------------------------------------------------
+      - key: NODE_RED_TITLE
+        value: Node-RED Cloud
+      - key: NODE_RED_ADMIN_ROOT
+        value: /admin
+      - key: NODE_RED_NODE_ROOT
+        value: /
+      - key: NODE_RED_HEADER_URL
+        value: https://nodered.org
+      # Detras del proxy de Render, X-Forwarded-* viene de un unico salto.
+      - key: NODE_RED_TRUST_PROXY
+        value: "true"
+
+      # --- Persistencia ------------------------------------------------------
+      # Dialecto de la base de datos: postgres | mysql
+      - key: NODE_RED_STORAGE_DIALECT
+        value: postgres
+      # Cadena de conexion completa (secret). Si la defines, tiene prioridad
+      # sobre las variables sueltas de host/usuario/password.
+      # Ejemplo: postgresql://user:pass@host:5432/nodered?sslmode=require
+      - key: NODE_RED_STORAGE_URL
+        sync: false
+
+      # Alternativa sin URL: descomenta y rellena como secrets.
+      # - key: NODE_RED_STORAGE_HOST
+      #   sync: false
+      # - key: NODE_RED_STORAGE_PORT
+      #   value: "5432"
+      # - key: NODE_RED_STORAGE_DATABASE
+      #   value: nodered
+      # - key: NODE_RED_STORAGE_USERNAME
+      #   sync: false
+      # - key: NODE_RED_STORAGE_PASSWORD
+      #   sync: false
+
+      # Postgres gestionado casi siempre exige TLS.
+      - key: NODE_RED_STORAGE_SSL
+        value: "true"
+      - key: NODE_RED_STORAGE_SSL_REJECT_UNAUTHORIZED
+        value: "true"
+
+      # Contexto inmediato: visible para todos los nodos y procesos externos
+      # en cuanto se escribe. Súbelo para batchear escrituras si el plan de
+      # base de datos tiene un limite bajo de operaciones.
+      - key: NODE_RED_STORAGE_FLUSH_INTERVAL
+        value: "0"
+      - key: NODE_RED_STORAGE_CACHE_TTL
+        value: "0"
+
+      # --- Seguridad del editor (secret) -------------------------------------
+      - key: NODE_RED_ADMIN_USER
+        value: admin
+      # Hash bcrypt de la contrasena. Marcado como secret: no lo pongas aqui.
+      - key: NODE_RED_ADMIN_HASH
+        sync: false
