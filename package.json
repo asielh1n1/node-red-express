@@ -1,0 +1,21 @@
+{
+  "name": "node-red-express",
+  "version": "1.0.0",
+  "description": "Execute node-red in express",
+  "license": "ISC",
+  "author": "Asiel Hernandez Valdes",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^4.22.3",
+    "mysql2": "^3.24.5",
+    "node-red": "^5.0.7",
+    "node-red-storage-sequelize": "^1.0.0",
+    "pg": "^8.23.1",
+    "pg-hstore": "^2.3.4"
+  }
+}

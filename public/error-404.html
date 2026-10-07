@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 - Page Not Found</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #0f0c29;
+      background-image: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #fffffe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .error-code {
+      font-size: clamp(6rem, 18vw, 12rem);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      color: #7f5af0;
+      margin-bottom: 1rem;
+      user-select: none;
+    }
+
+    .title {
+      font-size: clamp(1.3rem, 3vw, 1.8rem);
+      font-weight: 600;
+      color: #fffffe;
+      letter-spacing: -0.02em;
+    }
+
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, #7f5af0, #2cb67d);
+      border-radius: 999px;
+      margin: 1.5rem 0;
+    }
+
+    .subtitle {
+      font-size: clamp(0.9rem, 1.5vw, 1rem);
+      color: #94a1b2;
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 1.5rem;
+      }
+
+      .divider {
+        margin: 1.2rem 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1 class="error-code">404</h1>
+    <h2 class="title">Page Not Found</h2>
+    <div class="divider"></div>
+    <p class="subtitle">
+      The page you are looking for doesn't exist or has been moved.
+    </p>
+  </main>
+</body>
+</html>

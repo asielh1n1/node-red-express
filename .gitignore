@@ -1,0 +1,7 @@
+node_modules/
+
+# Environment variables (contains credentials)
+.env
+
+# Node-RED runtime data
+.node-red/
