@@ -223,6 +223,49 @@ Con un dialecto configurado, el contexto se guarda en la misma base de datos que
 los flujos. `global`, `flow` y `node` quedan en la tabla `nodered_context`, por
 lo que sobreviven a reinicios y son visibles desde fuera del proceso.
 
+## Nodos de paleta y drivers de base de datos
+
+Los nodos que se instalan desde el gestor de paleta (por ejemplo
+`node-red-contrib-orm-db`) se guardan en `NODE_RED_USER_DIR` —`/data` en la
+imagen—, no en `/app`. Eso crea **dos árboles de `node_modules` independientes**:
+
+```text
+/app/node_modules   -> node-red, express, pg, pg-hstore, mysql2   (la imagen)
+/data/node_modules  -> node-red-contrib-orm-db, sequelize, ...    (la paleta)
+```
+
+Cuando el nodo crea la instancia con `new Sequelize(..., {dialect: "postgres"})`,
+Sequelize ejecuta `require("pg")` desde
+`/data/node_modules/sequelize/lib/dialects/postgres/...`. Node busca en cada
+`node_modules` que va encontrando al subir: `/data/node_modules/sequelize/node_modules`,
+`/data/node_modules`, `/data`... y termina en la raíz. **Nunca mira
+`/app/node_modules`**, porque no está en esa ruta. De ahí que pida el paquete
+aunque esté declarado en el `package.json` de la aplicación:
+
+```text
+Error creating sequelize instance. Please install pg package manually
+```
+
+El texto `Please install pg package manually` lo lanza Sequelize; el prefijo
+`Error creating sequelize instance.` lo añade el nodo.
+
+La imagen lo resuelve con `ENV NODE_PATH=/app/node_modules` en el `Dockerfile`:
+los drivers de la aplicación quedan accesibles para cualquier nodo de paleta
+instalado en caliente. Requisito: el driver tiene que seguir declarado en
+`package.json` (`pg` y `pg-hstore` para Postgres, `mysql2` para MySQL). Si añades
+otro dialecto, añade también su driver.
+
+Si prefieres no depender de `NODE_PATH`, hay dos alternativas:
+
+- Declarar el nodo como dependencia de la aplicación (`package.json` de este
+  repo). Node-RED también descubre los nodos que están en `/app/node_modules`, y
+  así el nodo, Sequelize y el driver comparten árbol y la resolución funciona sin
+  más. Además sobreviven a los redeploys: en el plan gratuito de Render no hay
+  disco persistente, así que lo instalado desde la paleta se pierde.
+- Declararlo en el `package.json` de `NODE_RED_USER_DIR` y ejecutar
+  `npm install --prefix /data` durante el build, de modo que el driver quede en
+  `/data/node_modules`.
+
 ## Verificación
 
 ```bash

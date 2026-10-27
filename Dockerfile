@@ -43,6 +43,17 @@ FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=384
 
+# Los nodos que se instalan desde el gestor de paleta aterrizan en
+# ${NODE_RED_USER_DIR}/node_modules, que es un arbol distinto de
+# /app/node_modules. Cuando una dependencia de esos nodos hace
+# require("pg") (Sequelize lo hace desde node-red-contrib-orm-db), Node sube
+# por ese arbol (/data/node_modules -> /data -> /) y nunca llega a
+# /app/node_modules, asi que falla con:
+#   "Error creating sequelize instance. Please install pg package manually"
+# aunque pg este instalado en la imagen. NODE_PATH pone los drivers de la
+# aplicacion (pg, pg-hstore, mysql2) como ultimo recurso de resolucion.
+ENV NODE_PATH=/app/node_modules
+
 # wget se usa unicamente para el HEALTHCHECK de mas abajo.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends wget \
